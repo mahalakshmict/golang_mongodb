@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: golang
+spec:
+  ports:
+    - name: golang-1903
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: golang
+  type: ClusterIP
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: golang
+  labels:
+    app: golang
+spec:
+  selector:
+    matchLabels:
+      app: golang
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: golang
+    spec:
+      containers:
+      - name: golang
+        image: me:goapp
+        ports:
+        - containerPort: 8080
+        env:
+        - name: mongo_url
+          value: "localhost:8081"
+        volumeMounts:
+          - mountPath: /data
+            name: data-storage
+      - name: mongo
+        image: mongo:latest
+        ports:
+        - containerPort: 8081
+        resources:
+          requests:
+            cpu: 0.2
+            memory: 200Mi
+        # Best Practices
+        #volumeMounts:
+        #  - mountPath: /data/db
+        #    name: mongo-storage
+      volumes:
+      - name: data-storage
+        persistentVolumeClaim:
+          claimName: data-storage
+        # Best Practices
+        #- name: mongo-storage
+        #  persistentVolumeClaim:
+        #    claimName: mongo-storage
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: golang
+spec:
+  rules:
+    - host: golang.pb.com
+      http:
+        paths:
+          - backend:
+              serviceName: golang
+              servicePort: 8080
+            path: /
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data-storage
+  labels:
+    app: golang
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    path: /var/nfs/golang
+    server: xx.xx.xx.xx
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: data-storage
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Gi
+  selector:
+    matchLabels:
+      app: "golang"
